@@ -1,4 +1,17 @@
+# Ambientes e Sistema
 venv/
 __pycache__/
 .DS_Store
 .Trash/
+.vscode/
+.idea/
+
+# Dados e Resultados (Privacidade e Limpeza)
+logs/*.log
+results/*.json
+results/*.pkl
+
+# Distribuição
+dist/
+build/
+*.egg-info/
