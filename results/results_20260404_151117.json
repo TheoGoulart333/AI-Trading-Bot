@@ -1,0 +1,40 @@
+{
+  "run_config": {
+    "symbol": "BTC/USDT",
+    "timeframe": "1h",
+    "limit": 500,
+    "model": "random_forest",
+    "dry_run": true,
+    "timestamp": "20260404_151117"
+  },
+  "model_accuracy": 0.3684,
+  "backtest": {
+    "period": {
+      "start": "2024-01-19 11:00:00+00:00",
+      "end": "2024-01-21 19:00:00+00:00"
+    },
+    "capital": {
+      "initial": 10000,
+      "final": 9963.42,
+      "total_pnl": -36.58,
+      "total_return_pct": -0.37
+    },
+    "trades": {
+      "total": 3,
+      "wins": 1,
+      "losses": 2,
+      "win_rate_pct": 33.33,
+      "avg_win": 5.29,
+      "avg_loss": -20.94
+    },
+    "risk": {
+      "sharpe_ratio": -15.64,
+      "max_drawdown_pct": -0.42,
+      "profit_factor": 0.126
+    },
+    "exit_reasons": {
+      "stop_loss": 2,
+      "end_of_data": 1
+    }
+  }
+}

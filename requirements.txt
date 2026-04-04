@@ -1,0 +1,31 @@
+# ============================================================
+# AI Trading Bot — Dependências Python
+# ============================================================
+# Instale com: pip install -r requirements.txt
+
+# --- Core Data & Analysis ---
+pandas>=2.1.0
+numpy>=1.26.0
+
+# --- Machine Learning ---
+scikit-learn>=1.4.0
+joblib>=1.3.0
+
+# --- Deep Learning (opcional — necessário apenas para LSTM) ---
+# tensorflow>=2.15.0   # Descomente se for usar o modelo LSTM
+
+# --- Exchange Connectivity ---
+ccxt>=4.2.0
+
+# --- Visualização (opcional) ---
+matplotlib>=3.8.0
+plotly>=5.18.0
+
+# --- Qualidade de Código ---
+black>=24.0.0
+flake8>=7.0.0
+mypy>=1.8.0
+
+# --- Testes ---
+pytest>=7.4.0
+pytest-cov>=4.1.0

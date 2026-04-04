@@ -1,0 +1,37 @@
+2026-04-04 15:07:25 | INFO     | root | 📄 Log salvo em: logs/trading_bot_20260404_150725.log
+2026-04-04 15:07:25 | INFO     | __main__ | =================================================================
+2026-04-04 15:07:25 | INFO     | __main__ |   🤖 AI TRADING BOT — Pipeline de Análise e Backtesting
+2026-04-04 15:07:25 | INFO     | __main__ | =================================================================
+2026-04-04 15:07:25 | INFO     | __main__ |   Ativo     : BTC/USDT
+2026-04-04 15:07:25 | INFO     | __main__ |   Timeframe : 1h
+2026-04-04 15:07:25 | INFO     | __main__ |   Candles   : 500
+2026-04-04 15:07:25 | INFO     | __main__ |   Modelo    : lstm
+2026-04-04 15:07:25 | INFO     | __main__ |   Modo      : DRY-RUN (sintético)
+2026-04-04 15:07:25 | INFO     | __main__ | =================================================================
+2026-04-04 15:07:25 | INFO     | __main__ | 
+📥 [ETAPA 1/4] Ingestão de Dados...
+2026-04-04 15:07:25 | INFO     | __main__ | 🎲 Gerando 500 candles sintéticos (modo dry-run)...
+2026-04-04 15:07:25 | INFO     | __main__ | ✅ Dados carregados: 500 candles
+2026-04-04 15:07:25 | INFO     | __main__ | 
+📊 [ETAPA 2/4] Calculando Indicadores Técnicos...
+2026-04-04 15:07:25 | INFO     | src.technical_analysis | Calculando todos os indicadores técnicos...
+2026-04-04 15:07:25 | INFO     | src.technical_analysis | ✅ Indicadores calculados. 199 linhas de aquecimento removidas. 301 candles disponíveis para análise.
+2026-04-04 15:07:25 | INFO     | __main__ | ✅ 20 indicadores calculados
+2026-04-04 15:07:25 | INFO     | __main__ | 
+🧠 [ETAPA 3/4] Treinando modelo: lstm...
+2026-04-04 15:07:26 | INFO     | __main__ |    Amostras treino : 192
+2026-04-04 15:07:26 | INFO     | __main__ |    Amostras teste  : 49
+2026-04-04 15:07:26 | ERROR    | __main__ | ❌ Erro crítico no pipeline: No module named 'tensorflow'
+Traceback (most recent call last):
+  File "/Users/theo/Downloads/AI-trading-bot/main.py", line 291, in <module>
+    results = run_pipeline(
+        symbol=args.symbol,
+    ...<4 lines>...
+        output_dir=args.output,
+    )
+  File "/Users/theo/Downloads/AI-trading-bot/main.py", line 190, in run_pipeline
+    model.fit(X_train, y_train)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Users/theo/Downloads/AI-trading-bot/src/ai_model.py", line 290, in fit
+    from tensorflow.keras.callbacks import EarlyStopping
+ModuleNotFoundError: No module named 'tensorflow'

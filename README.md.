@@ -1,0 +1,25 @@
+# 🤖 AI Trading Bot - Crypto Predictor
+
+Este projeto é um ecossistema modular para análise técnica e previsão de tendências de criptoativos utilizando Machine Learning. Construído com foco em escalabilidade e confiabilidade matemática.
+
+## 🛠️ Arquitetura e Tecnologias
+- **Linguagem:** Python 3.14 (Bleeding Edge)
+- **Inteligência Artificial:** Scikit-Learn (Random Forest Classifier como baseline de explicabilidade)
+- **Análise de Dados:** Pandas & NumPy para cálculo manual de indicadores
+- **Conectividade:** CCXT para integração com múltiplas Exchanges
+- **Qualidade:** Pytest para validação de lógica financeira
+
+## 📈 Indicadores Implementados
+O bot calcula automaticamente os seguintes indicadores para alimentar o modelo de IA:
+- **RSI (Relative Strength Index)**
+- **MACD (Moving Average Convergence Divergence)**
+- **Bollinger Bands** (Upper, Middle, Lower)
+- **EMA & SMA** (Médias Móveis Exponenciais e Simples)
+- **ATR (Average True Range)** para medição de volatilidade
+
+## ✅ Garantia de Qualidade
+O projeto utiliza **Testes Unitários** para garantir que os cálculos matemáticos dos indicadores técnicos sejam precisos, cobrindo casos de borda e insuficiência de dados históricos.
+
+Para rodar os testes:
+```bash
+python3 -m pytest test_technical_analysis.py -v

@@ -1,0 +1,27 @@
+2026-04-04 15:02:42 | INFO     | root | 📄 Log salvo em: logs/trading_bot_20260404_150242.log
+2026-04-04 15:02:42 | INFO     | __main__ | =================================================================
+2026-04-04 15:02:42 | INFO     | __main__ |   🤖 AI TRADING BOT — Pipeline de Análise e Backtesting
+2026-04-04 15:02:42 | INFO     | __main__ | =================================================================
+2026-04-04 15:02:42 | INFO     | __main__ |   Ativo     : BTC/USDT
+2026-04-04 15:02:42 | INFO     | __main__ |   Timeframe : 1h
+2026-04-04 15:02:42 | INFO     | __main__ |   Candles   : 500
+2026-04-04 15:02:42 | INFO     | __main__ |   Modelo    : random_forest
+2026-04-04 15:02:42 | INFO     | __main__ |   Modo      : DRY-RUN (sintético)
+2026-04-04 15:02:42 | INFO     | __main__ | =================================================================
+2026-04-04 15:02:42 | INFO     | __main__ | 
+📥 [ETAPA 1/4] Ingestão de Dados...
+2026-04-04 15:02:42 | INFO     | __main__ | 🎲 Gerando 500 candles sintéticos (modo dry-run)...
+2026-04-04 15:02:42 | INFO     | __main__ | ✅ Dados carregados: 500 candles
+2026-04-04 15:02:42 | INFO     | __main__ | 
+📊 [ETAPA 2/4] Calculando Indicadores Técnicos...
+2026-04-04 15:02:42 | ERROR    | __main__ | ❌ Erro crítico no pipeline: No module named 'src'
+Traceback (most recent call last):
+  File "/Users/theo/Downloads/AI-trading-bot/main.py", line 291, in <module>
+    results = run_pipeline(
+        symbol=args.symbol,
+    ...<4 lines>...
+        output_dir=args.output,
+    )
+  File "/Users/theo/Downloads/AI-trading-bot/main.py", line 163, in run_pipeline
+    from src.technical_analysis import TechnicalAnalysis
+ModuleNotFoundError: No module named 'src'

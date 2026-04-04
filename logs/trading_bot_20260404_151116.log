@@ -1,0 +1,73 @@
+2026-04-04 15:11:16 | INFO     | root | 📄 Log salvo em: logs/trading_bot_20260404_151116.log
+2026-04-04 15:11:16 | INFO     | __main__ | =================================================================
+2026-04-04 15:11:16 | INFO     | __main__ |   🤖 AI TRADING BOT — Pipeline de Análise e Backtesting
+2026-04-04 15:11:16 | INFO     | __main__ | =================================================================
+2026-04-04 15:11:16 | INFO     | __main__ |   Ativo     : BTC/USDT
+2026-04-04 15:11:16 | INFO     | __main__ |   Timeframe : 1h
+2026-04-04 15:11:16 | INFO     | __main__ |   Candles   : 500
+2026-04-04 15:11:16 | INFO     | __main__ |   Modelo    : random_forest
+2026-04-04 15:11:16 | INFO     | __main__ |   Modo      : DRY-RUN (sintético)
+2026-04-04 15:11:16 | INFO     | __main__ | =================================================================
+2026-04-04 15:11:16 | INFO     | __main__ | 
+📥 [ETAPA 1/4] Ingestão de Dados...
+2026-04-04 15:11:16 | INFO     | __main__ | 🎲 Gerando 500 candles sintéticos (modo dry-run)...
+2026-04-04 15:11:16 | INFO     | __main__ | ✅ Dados carregados: 500 candles
+2026-04-04 15:11:16 | INFO     | __main__ | 
+📊 [ETAPA 2/4] Calculando Indicadores Técnicos...
+2026-04-04 15:11:16 | INFO     | src.technical_analysis | Calculando todos os indicadores técnicos...
+2026-04-04 15:11:16 | INFO     | src.technical_analysis | ✅ Indicadores calculados. 199 linhas de aquecimento removidas. 301 candles disponíveis para análise.
+2026-04-04 15:11:16 | INFO     | __main__ | ✅ 20 indicadores calculados
+2026-04-04 15:11:16 | INFO     | __main__ | 
+🧠 [ETAPA 3/4] Treinando modelo: random_forest...
+2026-04-04 15:11:17 | INFO     | __main__ |    Amostras treino : 225
+2026-04-04 15:11:17 | INFO     | __main__ |    Amostras teste  : 57
+2026-04-04 15:11:17 | INFO     | src.ai_model | 🌲 Top 5 features mais importantes:
+rsi_14         0.087059
+return_1       0.087002
+atr_14         0.084643
+return_7       0.081915
+macd_signal    0.074421
+dtype: float64
+2026-04-04 15:11:17 | INFO     | src.ai_model | 
+              precision    recall  f1-score   support
+
+           0       0.40      0.06      0.10        35
+           1       0.37      0.86      0.51        22
+
+    accuracy                           0.37        57
+   macro avg       0.38      0.46      0.31        57
+weighted avg       0.39      0.37      0.26        57
+
+2026-04-04 15:11:17 | INFO     | __main__ | ✅ Acurácia no conjunto de teste: 36.84%
+2026-04-04 15:11:17 | INFO     | src.ai_model | 💾 Modelo salvo em: results/model_rf.pkl
+2026-04-04 15:11:17 | INFO     | __main__ | 
+🔄 [ETAPA 4/4] Executando Backtesting...
+2026-04-04 15:11:17 | INFO     | src.backtesting | ============================================================
+2026-04-04 15:11:17 | INFO     | src.backtesting | 🚀 Iniciando Backtesting...
+2026-04-04 15:11:17 | INFO     | src.backtesting |    Capital inicial: $10,000.00
+2026-04-04 15:11:17 | INFO     | src.backtesting |    Período: 2024-01-19 11:00:00+00:00 → 2024-01-21 19:00:00+00:00
+2026-04-04 15:11:17 | INFO     | src.backtesting |    Candles: 57
+2026-04-04 15:11:17 | INFO     | src.backtesting | ============================================================
+2026-04-04 15:11:17 | INFO     | src.backtesting | 
+============================================================
+2026-04-04 15:11:17 | INFO     | src.backtesting | 📊 RELATÓRIO DE BACKTESTING
+2026-04-04 15:11:17 | INFO     | src.backtesting | ============================================================
+2026-04-04 15:11:17 | INFO     | src.backtesting |   Retorno Total   : -0.37%
+2026-04-04 15:11:17 | INFO     | src.backtesting |   Capital Final   : $  9,963.42
+2026-04-04 15:11:17 | INFO     | src.backtesting |   P&L Total       : $    -36.58
+2026-04-04 15:11:17 | INFO     | src.backtesting | ------------------------------------------------------------
+2026-04-04 15:11:17 | INFO     | src.backtesting |   Total de Trades : 3
+2026-04-04 15:11:17 | INFO     | src.backtesting |   Win Rate        : 33.33%
+2026-04-04 15:11:17 | INFO     | src.backtesting |   Média Win       : $   +5.29
+2026-04-04 15:11:17 | INFO     | src.backtesting |   Média Loss      : $  -20.94
+2026-04-04 15:11:17 | INFO     | src.backtesting | ------------------------------------------------------------
+2026-04-04 15:11:17 | INFO     | src.backtesting |   Sharpe Ratio    : -15.640
+2026-04-04 15:11:17 | INFO     | src.backtesting |   Max Drawdown    : -0.42%
+2026-04-04 15:11:17 | INFO     | src.backtesting |   Profit Factor   : 0.126
+2026-04-04 15:11:17 | INFO     | src.backtesting | ============================================================
+2026-04-04 15:11:17 | INFO     | src.backtesting |   Motivos de Saída: {'stop_loss': 2, 'end_of_data': 1}
+2026-04-04 15:11:17 | INFO     | src.backtesting | ============================================================
+2026-04-04 15:11:17 | INFO     | __main__ | 
+💾 Resultados salvos em: results/results_20260404_151117.json
+2026-04-04 15:11:17 | INFO     | __main__ | 
+✅ Pipeline concluído com sucesso!
