@@ -7,8 +7,6 @@ Responsável por buscar OHLCV (Open, High, Low, Close, Volume) de exchanges.
 
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Optional
 
 import ccxt
 import pandas as pd
@@ -22,15 +20,29 @@ class DataIngestion:
     utilizando a biblioteca CCXT (suporta 100+ exchanges).
     """
 
-    def __init__(self, exchange_id: str = "binance", sandbox: bool = True):
+    def __init__(
+        self,
+        exchange_id: str = "binance",
+        sandbox: bool = True,
+        max_retries: int = 3,
+        retry_backoff: float = 1.0,
+    ):
         """
         Inicializa a conexão com a exchange.
 
         Args:
             exchange_id: ID da exchange suportada pelo CCXT (ex: 'binance', 'kraken').
             sandbox: Se True, usa ambiente de testes (sem dinheiro real).
+            max_retries: Número máximo de novas tentativas em falhas de rede.
+            retry_backoff: Espera inicial, em segundos, entre tentativas.
         """
+        if max_retries < 0:
+            raise ValueError("max_retries não pode ser negativo.")
+        if retry_backoff < 0:
+            raise ValueError("retry_backoff não pode ser negativo.")
         self.exchange_id = exchange_id
+        self.max_retries = max_retries
+        self.retry_backoff = retry_backoff
         self.exchange = self._initialize_exchange(sandbox)
 
     def _initialize_exchange(self, sandbox: bool) -> ccxt.Exchange:
@@ -49,15 +61,17 @@ class DataIngestion:
             else:
                 logger.info(f"Exchange '{self.exchange_id}' iniciada em modo LIVE.")
             return exchange
-        except AttributeError:
-            raise ValueError(f"Exchange '{self.exchange_id}' não encontrada no CCXT.")
+        except AttributeError as error:
+            raise ValueError(
+                f"Exchange '{self.exchange_id}' não encontrada no CCXT."
+            ) from error
 
     def fetch_ohlcv(
         self,
         symbol: str,
         timeframe: str = "1h",
         limit: int = 500,
-        since: Optional[int] = None,
+        since: int | None = None,
     ) -> pd.DataFrame:
         """
         Busca dados históricos OHLCV e retorna um DataFrame estruturado.
@@ -72,19 +86,37 @@ class DataIngestion:
             DataFrame com colunas: timestamp, open, high, low, close, volume.
         """
         logger.info(
-            f"Buscando {limit} candles de {symbol} ({timeframe}) na {self.exchange_id}..."
+            "Buscando %s candles de %s (%s) na %s...",
+            limit,
+            symbol,
+            timeframe,
+            self.exchange_id,
         )
 
-        try:
-            raw_data = self.exchange.fetch_ohlcv(
-                symbol, timeframe=timeframe, limit=limit, since=since
-            )
-        except ccxt.NetworkError as e:
-            logger.error(f"Erro de rede ao buscar dados: {e}")
-            raise
-        except ccxt.ExchangeError as e:
-            logger.error(f"Erro da exchange: {e}")
-            raise
+        raw_data = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                raw_data = self.exchange.fetch_ohlcv(
+                    symbol, timeframe=timeframe, limit=limit, since=since
+                )
+                break
+            except ccxt.NetworkError as error:
+                if attempt == self.max_retries:
+                    logger.error(
+                        "Falha de rede após %s tentativas: %s", attempt + 1, error
+                    )
+                    raise
+                wait_seconds = self.retry_backoff * (2**attempt)
+                logger.warning(
+                    "Falha de rede. Nova tentativa em %.1fs (%s/%s).",
+                    wait_seconds,
+                    attempt + 1,
+                    self.max_retries,
+                )
+                time.sleep(wait_seconds)
+            except ccxt.ExchangeError as error:
+                logger.error("Erro não recuperável da exchange: %s", error)
+                raise
 
         if not raw_data:
             raise ValueError(f"Nenhum dado retornado para {symbol}/{timeframe}.")
@@ -99,7 +131,9 @@ class DataIngestion:
         for col in ["open", "high", "low", "close", "volume"]:
             df[col] = pd.to_numeric(df[col])
 
-        logger.info(f"✅ {len(df)} candles carregados. Período: {df.index[0]} → {df.index[-1]}")
+        logger.info(
+            f"✅ {len(df)} candles carregados. Período: {df.index[0]} → {df.index[-1]}"
+        )
         return df
 
     def fetch_multiple_symbols(

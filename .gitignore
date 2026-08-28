@@ -5,6 +5,10 @@ __pycache__/
 .Trash/
 .vscode/
 .idea/
+.coverage
+.pytest_cache/
+.ruff_cache/
+.venv/
 
 # Dados e Resultados (Privacidade e Limpeza)
 logs/*.log

@@ -48,31 +48,29 @@ class TechnicalAnalysis:
     #  Médias Móveis                                                       #
     # ------------------------------------------------------------------ #
 
-    def add_sma(self, periods: list[int] = [20, 50, 200]) -> "TechnicalAnalysis":
+    def add_sma(self, periods: list[int] | None = None) -> "TechnicalAnalysis":
         """
         Adiciona Médias Móveis Simples (SMA).
 
         Args:
             periods: Lista de períodos a calcular.
         """
-        for period in periods:
+        for period in periods or [20, 50, 200]:
             col_name = f"sma_{period}"
             self.df[col_name] = self.df["close"].rolling(window=period).mean()
             logger.debug(f"Indicador adicionado: {col_name}")
         return self  # Suporta encadeamento: ta.add_sma().add_rsi()
 
-    def add_ema(self, periods: list[int] = [9, 21]) -> "TechnicalAnalysis":
+    def add_ema(self, periods: list[int] | None = None) -> "TechnicalAnalysis":
         """
         Adiciona Médias Móveis Exponenciais (EMA).
 
         Args:
             periods: Lista de períodos a calcular.
         """
-        for period in periods:
+        for period in periods or [9, 21]:
             col_name = f"ema_{period}"
-            self.df[col_name] = (
-                self.df["close"].ewm(span=period, adjust=False).mean()
-            )
+            self.df[col_name] = self.df["close"].ewm(span=period, adjust=False).mean()
             logger.debug(f"Indicador adicionado: {col_name}")
         return self
 

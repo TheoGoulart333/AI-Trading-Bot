@@ -32,6 +32,7 @@ import pandas as pd
 #  Configuração de Logging                                                  #
 # ======================================================================= #
 
+
 def setup_logging(log_level: str = "INFO") -> None:
     """
     Configura logging para console (colorido) e arquivo rotativo.
@@ -66,6 +67,7 @@ logger = logging.getLogger(__name__)
 # ======================================================================= #
 #  Gerador de Dados Sintéticos (Modo Dry-Run)                               #
 # ======================================================================= #
+
 
 def generate_synthetic_data(n_candles: int = 500) -> pd.DataFrame:
     """
@@ -105,6 +107,7 @@ def generate_synthetic_data(n_candles: int = 500) -> pd.DataFrame:
 # ======================================================================= #
 #  Pipeline Principal                                                        #
 # ======================================================================= #
+
 
 def run_pipeline(
     symbol: str = "BTC/USDT",
@@ -150,6 +153,7 @@ def run_pipeline(
         df_raw = generate_synthetic_data(n_candles=limit)
     else:
         from src.data_ingestion import DataIngestion
+
         ingestion = DataIngestion(exchange_id="binance")
         df_raw = ingestion.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
 
@@ -161,6 +165,7 @@ def run_pipeline(
     logger.info("\n📊 [ETAPA 2/4] Calculando Indicadores Técnicos...")
 
     from src.technical_analysis import TechnicalAnalysis
+
     ta = TechnicalAnalysis(df_raw)
     df_features = ta.add_all_indicators()
     logger.info(f"✅ {len(df_features.columns)} indicadores calculados")
@@ -178,8 +183,13 @@ def run_pipeline(
         model = RandomForestModel(n_estimators=200)
 
     X, y = model.prepare_features(df_features)
+    if len(X) < 50:
+        raise ValueError(
+            "Dados insuficientes após o aquecimento dos indicadores. "
+            "Aumente --limit para pelo menos 300 candles."
+        )
 
-    # Split temporal (80% treino / 20% teste) — NUNCA use split aleatório em séries temporais!
+    # Split temporal (80% treino / 20% teste), sem embaralhar a série.
     split_idx = int(len(X) * 0.80)
     X_train, X_test = X[:split_idx], X[split_idx:]
     y_train, y_test = y[:split_idx], y[split_idx:]
@@ -200,20 +210,22 @@ def run_pipeline(
     # Gera previsões para o período de teste (para o backtesting)
     predictions = model.predict(X_test)
     probabilities = None
-    if model_type == "random_forest" and hasattr(model, "predict_proba"):
-        probabilities = model.predict_proba(X_test)[:, 1]
+    if model_type == "random_forest":
+        probabilities = model.predict_up_probability(X_test)
+    elif model_type == "lstm":
+        probabilities = model.predict_proba(X_test)
 
     # ------------------------------------------------------------------ #
     #  ETAPA 4: Backtesting                                               #
     # ------------------------------------------------------------------ #
     logger.info("\n🔄 [ETAPA 4/4] Executando Backtesting...")
 
-    from src.backtesting import Backtester, BacktestConfig
+    from src.backtesting import BacktestConfig, Backtester
 
-    # Alinha o DataFrame com o período de teste
-    # (desconta o warmup dos indicadores e o split de treino)
-    n_warmup = len(df_features) - len(X)  # linhas removidas pelo dropna
-    test_df = df_features.iloc[n_warmup + split_idx : n_warmup + split_idx + len(X_test)]
+    # Usa os timestamps preservados pelo modelo para evitar deslocamentos entre
+    # features, targets, previsões e candles do backtest.
+    test_index = model.sample_index[split_idx:]
+    test_df = df_features.loc[test_index]
 
     config = BacktestConfig(
         initial_capital=10_000,
@@ -257,6 +269,7 @@ def run_pipeline(
 #  Entry Point CLI                                                           #
 # ======================================================================= #
 
+
 def parse_args() -> argparse.Namespace:
     """Parse dos argumentos da linha de comando."""
     parser = argparse.ArgumentParser(
@@ -272,14 +285,26 @@ Exemplos de uso:
     Não constitui aconselhamento financeiro. Use por sua conta e risco.
         """,
     )
-    parser.add_argument("--symbol",    default="BTC/USDT",     help="Par de trading (padrão: BTC/USDT)")
-    parser.add_argument("--timeframe", default="1h",            help="Timeframe (padrão: 1h)")
-    parser.add_argument("--limit",     default=500, type=int,   help="Número de candles (padrão: 500)")
-    parser.add_argument("--model",     default="random_forest", choices=["random_forest", "lstm"],
-                        help="Modelo de IA (padrão: random_forest)")
-    parser.add_argument("--log-level", default="INFO",          help="Nível de log (padrão: INFO)")
-    parser.add_argument("--dry-run",   action="store_true",     help="Usa dados sintéticos (sem API)")
-    parser.add_argument("--output",    default="results",       help="Diretório de saída")
+    parser.add_argument(
+        "--symbol", default="BTC/USDT", help="Par de trading (padrão: BTC/USDT)"
+    )
+    parser.add_argument("--timeframe", default="1h", help="Timeframe (padrão: 1h)")
+    parser.add_argument(
+        "--limit", default=500, type=int, help="Número de candles (padrão: 500)"
+    )
+    parser.add_argument(
+        "--model",
+        default="random_forest",
+        choices=["random_forest", "lstm"],
+        help="Modelo de IA (padrão: random_forest)",
+    )
+    parser.add_argument(
+        "--log-level", default="INFO", help="Nível de log (padrão: INFO)"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Usa dados sintéticos (sem API)"
+    )
+    parser.add_argument("--output", default="results", help="Diretório de saída")
     return parser.parse_args()
 
 

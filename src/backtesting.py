@@ -14,8 +14,7 @@ Simula a execução de ordens históricas com controle de:
 """
 
 import logging
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -27,36 +26,53 @@ logger = logging.getLogger(__name__)
 #  Estruturas de Dados                                                      #
 # ======================================================================= #
 
+
 @dataclass
 class Trade:
     """Representa uma operação completa (entrada + saída)."""
+
     entry_time: pd.Timestamp
     entry_price: float
-    exit_time: Optional[pd.Timestamp] = None
-    exit_price: Optional[float] = None
-    direction: str = "long"          # 'long' ou 'short'
-    size: float = 0.0                # Quantidade em unidades do ativo
-    pnl: float = 0.0                 # Lucro/Prejuízo em USDT
-    pnl_pct: float = 0.0             # Retorno percentual
-    exit_reason: str = ""            # 'signal', 'stop_loss', 'take_profit', 'end_of_data'
+    exit_time: pd.Timestamp | None = None
+    exit_price: float | None = None
+    direction: str = "long"  # 'long' ou 'short'
+    size: float = 0.0  # Quantidade em unidades do ativo
+    entry_fee: float = 0.0  # Taxa cobrada na abertura
+    pnl: float = 0.0  # Lucro/Prejuízo em USDT
+    pnl_pct: float = 0.0  # Retorno percentual
+    exit_reason: str = ""  # 'signal', 'stop_loss', 'take_profit', 'end_of_data'
 
 
 @dataclass
 class BacktestConfig:
     """Configurações do backtesting."""
-    initial_capital: float = 10_000.0   # Capital inicial em USDT
-    position_size_pct: float = 0.10     # % do capital por operação (10%)
-    fee_pct: float = 0.001              # Taxa de transação (0.1% — Binance maker)
-    slippage_pct: float = 0.0005        # Slippage estimado (0.05%)
-    stop_loss_pct: float = 0.02         # Stop-loss em 2%
-    take_profit_pct: float = 0.04       # Take-profit em 4% (ratio R:R = 1:2)
-    allow_short: bool = False           # Permite operações vendidas
-    min_confidence: float = 0.55        # Confiança mínima do modelo para operar
+
+    initial_capital: float = 10_000.0  # Capital inicial em USDT
+    position_size_pct: float = 0.10  # % do capital por operação (10%)
+    fee_pct: float = 0.001  # Taxa de transação (0.1% — Binance maker)
+    slippage_pct: float = 0.0005  # Slippage estimado (0.05%)
+    stop_loss_pct: float = 0.02  # Stop-loss em 2%
+    take_profit_pct: float = 0.04  # Take-profit em 4% (ratio R:R = 1:2)
+    allow_short: bool = False  # Permite operações vendidas
+    min_confidence: float = 0.55  # Confiança mínima do modelo para operar
+
+    def __post_init__(self) -> None:
+        """Impede configurações financeiras inválidas ou ambíguas."""
+        if self.initial_capital <= 0:
+            raise ValueError("initial_capital deve ser maior que zero.")
+        if not 0 < self.position_size_pct <= 1:
+            raise ValueError("position_size_pct deve estar no intervalo (0, 1].")
+        for name in ("fee_pct", "slippage_pct", "stop_loss_pct", "take_profit_pct"):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} não pode ser negativo.")
+        if not 0 <= self.min_confidence <= 1:
+            raise ValueError("min_confidence deve estar no intervalo [0, 1].")
 
 
 # ======================================================================= #
 #  Motor de Backtesting                                                     #
 # ======================================================================= #
+
 
 class Backtester:
     """
@@ -70,13 +86,18 @@ class Backtester:
         5. Calcula métricas de performance ao final
     """
 
-    def __init__(self, config: Optional[BacktestConfig] = None):
+    def __init__(self, config: BacktestConfig | None = None):
         self.config = config or BacktestConfig()
         self.trades: list[Trade] = []
         self.equity_curve: list[float] = []
         self.capital = self.config.initial_capital
 
-    def run(self, df: pd.DataFrame, predictions: np.ndarray, probabilities: Optional[np.ndarray] = None) -> dict:
+    def run(
+        self,
+        df: pd.DataFrame,
+        predictions: np.ndarray,
+        probabilities: np.ndarray | None = None,
+    ) -> dict:
         """
         Executa o backtest sobre o DataFrame histórico.
 
@@ -89,6 +110,9 @@ class Backtester:
         Returns:
             Dicionário com métricas de performance detalhadas.
         """
+        predictions = np.asarray(predictions)
+        probabilities = None if probabilities is None else np.asarray(probabilities)
+        self._validate_inputs(df, predictions, probabilities)
         self.trades = []
         self.equity_curve = []
         self.capital = self.config.initial_capital
@@ -100,17 +124,16 @@ class Backtester:
         logger.info(f"   Candles: {len(df)}")
         logger.info("=" * 60)
 
-        current_trade: Optional[Trade] = None
+        current_trade: Trade | None = None
 
         for i, (timestamp, row) in enumerate(df.iterrows()):
-            self.equity_curve.append(self.capital)
-
-            # Proteção: não opera nos últimos candles (sem dados futuros)
-            if i >= len(predictions):
-                break
-
+            closed_this_candle = False
             signal = int(predictions[i])
-            confidence = float(probabilities[i]) if probabilities is not None else 1.0
+            if probabilities is None:
+                confidence = 1.0
+            else:
+                probability_up = float(probabilities[i])
+                confidence = probability_up if signal == 1 else 1 - probability_up
 
             # ----------------------------------------------------------- #
             #  Gerenciamento de posição aberta                             #
@@ -123,36 +146,87 @@ class Backtester:
                     self.trades.append(current_trade)
                     self.capital += current_trade.pnl
                     current_trade = None
-                    continue
+                    closed_this_candle = True
+
+            # Um sinal contrário encerra a posição no fechamento do candle.
+            if current_trade is not None and (
+                (current_trade.direction == "long" and signal == 0)
+                or (current_trade.direction == "short" and signal == 1)
+            ):
+                current_trade.exit_time = timestamp
+                current_trade.exit_price = self._execution_price(
+                    float(row["close"]), current_trade.direction, is_entry=False
+                )
+                current_trade = self._close_trade(current_trade, "signal")
+                self.trades.append(current_trade)
+                self.capital += current_trade.pnl
+                current_trade = None
+                closed_this_candle = True
 
             # ----------------------------------------------------------- #
             #  Abertura de nova posição                                    #
             # ----------------------------------------------------------- #
-            if current_trade is None and confidence >= self.config.min_confidence:
+            if (
+                current_trade is None
+                and not closed_this_candle
+                and confidence >= self.config.min_confidence
+            ):
                 if signal == 1:  # Sinal de ALTA
                     current_trade = self._open_trade(timestamp, row, "long")
                 elif signal == 0 and self.config.allow_short:  # Sinal de BAIXA
                     current_trade = self._open_trade(timestamp, row, "short")
 
+            self.equity_curve.append(
+                self._mark_to_market(current_trade, float(row["close"]))
+            )
+
         # Fecha posição aberta ao final dos dados
         if current_trade is not None:
             current_trade.exit_time = df.index[-1]
-            current_trade.exit_price = df["close"].iloc[-1]
+            current_trade.exit_price = self._execution_price(
+                float(df["close"].iloc[-1]), current_trade.direction, is_entry=False
+            )
             current_trade = self._close_trade(current_trade, "end_of_data")
             self.trades.append(current_trade)
             self.capital += current_trade.pnl
+            self.equity_curve[-1] = self.capital
 
         return self._calculate_metrics(df)
 
-    def _open_trade(self, timestamp: pd.Timestamp, row: pd.Series, direction: str) -> Trade:
+    @staticmethod
+    def _validate_inputs(
+        df: pd.DataFrame,
+        predictions: np.ndarray,
+        probabilities: np.ndarray | None,
+    ) -> None:
+        """Valida alinhamento e domínio dos dados antes da simulação."""
+        if df.empty:
+            raise ValueError("O DataFrame do backtest não pode estar vazio.")
+        missing = {"high", "low", "close"} - set(df.columns)
+        if missing:
+            raise ValueError(f"Colunas obrigatórias ausentes: {sorted(missing)}")
+        if len(predictions) != len(df):
+            raise ValueError("predictions deve ter o mesmo tamanho do DataFrame.")
+        if probabilities is not None and len(probabilities) != len(df):
+            raise ValueError("probabilities deve ter o mesmo tamanho do DataFrame.")
+        if not np.isin(predictions, [0, 1]).all():
+            raise ValueError("predictions aceita somente sinais binários 0 ou 1.")
+        if probabilities is not None and not (
+            (probabilities >= 0).all() and (probabilities <= 1).all()
+        ):
+            raise ValueError("probabilities deve estar no intervalo [0, 1].")
+
+    def _open_trade(
+        self, timestamp: pd.Timestamp, row: pd.Series, direction: str
+    ) -> Trade:
         """Cria uma nova operação aplicando fees e slippage."""
-        # Slippage: assume execução a preço levemente pior
-        slippage = row["close"] * self.config.slippage_pct
-        entry_price = row["close"] + slippage if direction == "long" else row["close"] - slippage
+        entry_price = self._execution_price(
+            float(row["close"]), direction, is_entry=True
+        )
 
         position_value = self.capital * self.config.position_size_pct
-        fee = position_value * self.config.fee_pct
-        size = (position_value - fee) / entry_price
+        entry_fee = position_value * self.config.fee_pct
+        size = position_value / entry_price
 
         logger.debug(
             f"📈 Abrindo {direction.upper()} | "
@@ -163,7 +237,28 @@ class Backtester:
             entry_price=entry_price,
             direction=direction,
             size=size,
+            entry_fee=entry_fee,
         )
+
+    def _execution_price(self, price: float, direction: str, is_entry: bool) -> float:
+        """Aplica slippage adverso na entrada e na saída."""
+        adverse_move = self.config.slippage_pct
+        if (direction == "long") == is_entry:
+            return price * (1 + adverse_move)
+        return price * (1 - adverse_move)
+
+    def _mark_to_market(self, trade: Trade | None, close_price: float) -> float:
+        """Calcula o patrimônio incluindo P&L não realizado e custos de saída."""
+        if trade is None:
+            return self.capital
+        exit_price = self._execution_price(close_price, trade.direction, is_entry=False)
+        gross_pnl = (
+            (exit_price - trade.entry_price) * trade.size
+            if trade.direction == "long"
+            else (trade.entry_price - exit_price) * trade.size
+        )
+        exit_fee = trade.size * exit_price * self.config.fee_pct
+        return self.capital + gross_pnl - trade.entry_fee - exit_fee
 
     def _manage_open_position(
         self, trade: Trade, row: pd.Series, timestamp: pd.Timestamp
@@ -181,15 +276,17 @@ class Backtester:
         )
 
         # Stop-loss ativado?
-        if (trade.direction == "long" and row["low"] <= sl_price) or \
-           (trade.direction == "short" and row["high"] >= sl_price):
+        if (trade.direction == "long" and row["low"] <= sl_price) or (
+            trade.direction == "short" and row["high"] >= sl_price
+        ):
             trade.exit_price = sl_price
             trade.exit_time = timestamp
             return self._close_trade(trade, "stop_loss"), True
 
         # Take-profit ativado?
-        if (trade.direction == "long" and row["high"] >= tp_price) or \
-           (trade.direction == "short" and row["low"] <= tp_price):
+        if (trade.direction == "long" and row["high"] >= tp_price) or (
+            trade.direction == "short" and row["low"] <= tp_price
+        ):
             trade.exit_price = tp_price
             trade.exit_time = timestamp
             return self._close_trade(trade, "take_profit"), True
@@ -205,7 +302,7 @@ class Backtester:
         else:
             gross_pnl = (trade.entry_price - trade.exit_price) * trade.size
 
-        trade.pnl = gross_pnl - fee
+        trade.pnl = gross_pnl - trade.entry_fee - fee
         trade.pnl_pct = trade.pnl / (trade.entry_price * trade.size)
         trade.exit_reason = reason
 
@@ -229,10 +326,14 @@ class Backtester:
         trades_df = pd.DataFrame(
             [
                 {
-                    "entry_time": t.entry_time, "exit_time": t.exit_time,
-                    "direction": t.direction, "entry_price": t.entry_price,
-                    "exit_price": t.exit_price, "pnl": t.pnl,
-                    "pnl_pct": t.pnl_pct, "exit_reason": t.exit_reason,
+                    "entry_time": t.entry_time,
+                    "exit_time": t.exit_time,
+                    "direction": t.direction,
+                    "entry_price": t.entry_price,
+                    "exit_price": t.exit_price,
+                    "pnl": t.pnl,
+                    "pnl_pct": t.pnl_pct,
+                    "exit_reason": t.exit_reason,
                 }
                 for t in self.trades
             ]
@@ -247,11 +348,13 @@ class Backtester:
         final_capital = self.config.initial_capital + total_pnl
         total_return = (final_capital / self.config.initial_capital - 1) * 100
 
-        # Sharpe Ratio (anualizado, assumindo retornos diários)
-        daily_returns = trades_df["pnl_pct"].values
+        # Sharpe não anualizado sobre os retornos por operação. Sem conhecer a
+        # frequência efetiva da estratégia, anualizar produziria falsa precisão.
+        trade_returns = trades_df["pnl_pct"].values
         sharpe = (
-            (np.mean(daily_returns) / np.std(daily_returns)) * np.sqrt(252)
-            if np.std(daily_returns) > 0 else 0
+            np.mean(trade_returns) / np.std(trade_returns)
+            if np.std(trade_returns) > 0
+            else 0
         )
 
         # Maximum Drawdown
@@ -278,11 +381,20 @@ class Backtester:
                 "wins": len(winning_trades),
                 "losses": len(losing_trades),
                 "win_rate_pct": round(win_rate * 100, 2),
-                "avg_win": round(winning_trades["pnl"].mean(), 2) if len(winning_trades) > 0 else 0,
-                "avg_loss": round(losing_trades["pnl"].mean(), 2) if len(losing_trades) > 0 else 0,
+                "avg_win": (
+                    round(winning_trades["pnl"].mean(), 2)
+                    if len(winning_trades) > 0
+                    else 0
+                ),
+                "avg_loss": (
+                    round(losing_trades["pnl"].mean(), 2)
+                    if len(losing_trades) > 0
+                    else 0
+                ),
             },
             "risk": {
                 "sharpe_ratio": round(sharpe, 3),
+                "sharpe_basis": "per_trade_unannualized",
                 "max_drawdown_pct": round(max_drawdown, 2),
                 "profit_factor": round(profit_factor, 3),
             },
@@ -340,6 +452,8 @@ if __name__ == "__main__":
     mock_predictions = np.random.randint(0, 2, 300)
     mock_proba = np.random.uniform(0.45, 0.65, 300)
 
-    config = BacktestConfig(initial_capital=10000, stop_loss_pct=0.02, take_profit_pct=0.04)
+    config = BacktestConfig(
+        initial_capital=10000, stop_loss_pct=0.02, take_profit_pct=0.04
+    )
     backtester = Backtester(config)
     results = backtester.run(mock_df, mock_predictions, mock_proba)

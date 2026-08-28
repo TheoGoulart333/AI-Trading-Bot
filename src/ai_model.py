@@ -13,7 +13,6 @@ intercambialidade fácil no pipeline principal.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import joblib
 import numpy as np
@@ -30,8 +29,11 @@ logger = logging.getLogger(__name__)
 #  Interface Base (Strategy Pattern)                                        #
 # ======================================================================= #
 
+
 class BaseModel(ABC):
     """Interface abstrata para todos os modelos de IA."""
+
+    sample_index: pd.Index
 
     @abstractmethod
     def prepare_features(self, df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
@@ -51,15 +53,21 @@ class BaseModel(ABC):
     def evaluate(self, X_test: np.ndarray, y_test: np.ndarray) -> dict:
         """Avalia o modelo e retorna métricas."""
         y_pred = self.predict(X_test)
-        report = classification_report(y_test, y_pred, output_dict=True)
+        report = classification_report(
+            y_test, y_pred, output_dict=True, zero_division=0
+        )
         cm = confusion_matrix(y_test, y_pred)
-        logger.info(f"\n{classification_report(y_test, y_pred)}")
+        logger.info(
+            "\n%s",
+            classification_report(y_test, y_pred, zero_division=0),
+        )
         return {"classification_report": report, "confusion_matrix": cm.tolist()}
 
 
 # ======================================================================= #
 #  Modelo 1: Random Forest (Baseline Recomendado)                          #
 # ======================================================================= #
+
 
 class RandomForestModel(BaseModel):
     """
@@ -76,13 +84,19 @@ class RandomForestModel(BaseModel):
 
     FEATURE_COLUMNS = [
         "rsi_14",
-        "macd_line", "macd_signal", "macd_histogram",
+        "macd_line",
+        "macd_signal",
+        "macd_histogram",
         "bb_width",
         "atr_14",
-        "sma_20", "sma_50",
-        "ema_9", "ema_21",
+        "sma_20",
+        "sma_50",
+        "ema_9",
+        "ema_21",
         # Features de momentum construídas
-        "return_1", "return_3", "return_7",
+        "return_1",
+        "return_3",
+        "return_7",
         "volume_ratio",
     ]
 
@@ -97,6 +111,7 @@ class RandomForestModel(BaseModel):
         )
         self.scaler = StandardScaler()
         self.feature_names: list[str] = []
+        self.sample_index = pd.Index([])
         self.is_fitted = False
 
     def prepare_features(self, df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
@@ -119,17 +134,21 @@ class RandomForestModel(BaseModel):
         # Volume relativo à média (anomalia de volume)
         data["volume_ratio"] = data["volume"] / data["volume"].rolling(20).mean()
 
-        # Target: 1 se o preço SUBIU no próximo candle
-        data["target"] = (data["close"].shift(-1) > data["close"]).astype(int)
+        missing = set(self.FEATURE_COLUMNS) - set(data.columns)
+        if missing:
+            raise ValueError(f"Features obrigatórias ausentes: {sorted(missing)}")
 
-        data.dropna(inplace=True)
+        # O último candle não possui futuro conhecido e não pode receber classe 0.
+        next_close = data["close"].shift(-1)
+        data["target"] = (next_close > data["close"]).where(next_close.notna())
+        data.replace([np.inf, -np.inf], np.nan, inplace=True)
+        data.dropna(subset=[*self.FEATURE_COLUMNS, "target"], inplace=True)
 
-        # Seleciona apenas as features disponíveis no DataFrame
-        available = [f for f in self.FEATURE_COLUMNS if f in data.columns]
-        self.feature_names = available
+        self.feature_names = self.FEATURE_COLUMNS.copy()
+        self.sample_index = data.index.copy()
 
-        X = data[available].values
-        y = data["target"].values
+        X = data[self.feature_names].to_numpy(dtype=float)
+        y = data["target"].to_numpy(dtype=int)
         return X, y
 
     def fit(self, X_train: np.ndarray, y_train: np.ndarray) -> None:
@@ -158,9 +177,25 @@ class RandomForestModel(BaseModel):
         X_scaled = self.scaler.transform(X)
         return self.model.predict_proba(X_scaled)
 
+    def predict_up_probability(self, X: np.ndarray) -> np.ndarray:
+        """Retorna P(classe=1), inclusive quando o treino contém uma classe só."""
+        probabilities = self.predict_proba(X)
+        classes = self.model.classes_
+        if 1 in classes:
+            positive_column = int(np.flatnonzero(classes == 1)[0])
+            return probabilities[:, positive_column]
+        return np.zeros(len(X), dtype=float)
+
     def save(self, path: str) -> None:
         """Serializa o modelo e o scaler."""
-        joblib.dump({"model": self.model, "scaler": self.scaler}, path)
+        joblib.dump(
+            {
+                "model": self.model,
+                "scaler": self.scaler,
+                "feature_names": self.feature_names,
+            },
+            path,
+        )
         logger.info(f"💾 Modelo salvo em: {path}")
 
     def load(self, path: str) -> None:
@@ -168,6 +203,7 @@ class RandomForestModel(BaseModel):
         data = joblib.load(path)
         self.model = data["model"]
         self.scaler = data["scaler"]
+        self.feature_names = data.get("feature_names", [])
         self.is_fitted = True
         logger.info(f"📂 Modelo carregado de: {path}")
 
@@ -207,6 +243,7 @@ class RandomForestModel(BaseModel):
 #  Modelo 2: LSTM (Deep Learning — Opcional/Avançado)                      #
 # ======================================================================= #
 
+
 class LSTMModel(BaseModel):
     """
     Rede LSTM para capturar dependências temporais sequenciais.
@@ -229,20 +266,26 @@ class LSTMModel(BaseModel):
         self.batch_size = batch_size
         self.model = None
         self.scaler = StandardScaler()
+        self.feature_names: list[str] = []
+        self.sample_index = pd.Index([])
+        self.is_fitted = False
 
     def _build_model(self, input_shape: tuple) -> None:
         """Constrói a arquitetura LSTM."""
         try:
-            from tensorflow.keras.callbacks import EarlyStopping
             from tensorflow.keras.layers import (
-                LSTM, BatchNormalization, Dense, Dropout, Input
+                LSTM,
+                BatchNormalization,
+                Dense,
+                Dropout,
+                Input,
             )
             from tensorflow.keras.models import Sequential
             from tensorflow.keras.optimizers import Adam
-        except ImportError:
+        except ImportError as error:
             raise ImportError(
                 "TensorFlow não encontrado. Instale com: pip install tensorflow"
-            )
+            ) from error
 
         self.model = Sequential(
             [
@@ -269,42 +312,72 @@ class LSTMModel(BaseModel):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Converte features planas em sequências 3D para o LSTM."""
         Xs, ys = [], []
-        for i in range(self.lookback, len(X)):
-            Xs.append(X[i - self.lookback : i])
-            ys.append(y[i])
+        for end in range(self.lookback - 1, len(X)):
+            start = end - self.lookback + 1
+            Xs.append(X[start : end + 1])
+            ys.append(y[end])
         return np.array(Xs), np.array(ys)
 
     def prepare_features(self, df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
         """Usa subconjunto de features numéricas para o LSTM."""
         data = df.copy()
-        data["target"] = (data["close"].shift(-1) > data["close"]).astype(int)
+        next_close = data["close"].shift(-1)
+        data["target"] = (next_close > data["close"]).where(next_close.notna())
+        data.replace([np.inf, -np.inf], np.nan, inplace=True)
         data.dropna(inplace=True)
 
-        feature_cols = [c for c in data.columns if c != "target"]
-        X = self.scaler.fit_transform(data[feature_cols].values)
-        y = data["target"].values
-        return self._create_sequences(X, y)
+        self.feature_names = [c for c in data.columns if c != "target"]
+        X = data[self.feature_names].to_numpy(dtype=float)
+        y = data["target"].to_numpy(dtype=int)
+        X_sequences, y_sequences = self._create_sequences(X, y)
+        self.sample_index = data.index[self.lookback - 1 :].copy()
+        return X_sequences, y_sequences
 
     def fit(self, X_train: np.ndarray, y_train: np.ndarray) -> None:
         """Treina o LSTM com early stopping para evitar overfitting."""
         from tensorflow.keras.callbacks import EarlyStopping
 
-        self._build_model(input_shape=(X_train.shape[1], X_train.shape[2]))
-        early_stop = EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True)
+        if X_train.ndim != 3:
+            raise ValueError(
+                "O LSTM espera features no formato [amostras, tempo, atributos]."
+            )
+
+        n_samples, lookback, n_features = X_train.shape
+        self.scaler.fit(X_train.reshape(-1, n_features))
+        X_train_scaled = self.scaler.transform(X_train.reshape(-1, n_features)).reshape(
+            n_samples, lookback, n_features
+        )
+
+        self._build_model(input_shape=(lookback, n_features))
+        early_stop = EarlyStopping(
+            monitor="val_loss", patience=5, restore_best_weights=True
+        )
 
         self.model.fit(
-            X_train, y_train,
+            X_train_scaled,
+            y_train,
             epochs=self.epochs,
             batch_size=self.batch_size,
             validation_split=0.1,
             callbacks=[early_stop],
             verbose=1,
         )
+        self.is_fitted = True
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Converte probabilidades para classificação binária (threshold=0.5)."""
-        proba = self.model.predict(X, verbose=0)
+        proba = self.predict_proba(X)
         return (proba > 0.5).astype(int).flatten()
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Retorna a probabilidade de alta para cada sequência."""
+        if not self.is_fitted or self.model is None:
+            raise RuntimeError("Modelo não foi treinado. Execute fit() primeiro.")
+        n_samples, lookback, n_features = X.shape
+        X_scaled = self.scaler.transform(X.reshape(-1, n_features)).reshape(
+            n_samples, lookback, n_features
+        )
+        return self.model.predict(X_scaled, verbose=0).flatten()
 
 
 # --- Execução standalone para testes rápidos ---

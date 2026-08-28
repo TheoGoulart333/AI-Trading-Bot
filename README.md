@@ -1,270 +1,223 @@
-# 🤖 AI Trading Bot — Machine Learning meets Financial Markets
-
 <div align="center">
 
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-1.4+-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
-![CCXT](https://img.shields.io/badge/CCXT-4.2+-2B2B2B?style=for-the-badge)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-![Status](https://img.shields.io/badge/Status-Educational-yellow?style=for-the-badge)
+# AI Trading Bot
 
-**Um projeto de portfólio demonstrando a interseção entre Engenharia de Software, Machine Learning e Finanças Quantitativas.**
+### Laboratório reproduzível de machine learning aplicado a séries temporais financeiras
 
-[Arquitetura](#-arquitetura) • [Instalação](#-instalação) • [Uso](#-uso) • [Módulos](#-módulos) • [Disclaimer](#️-disclaimer)
+[![Quality](https://github.com/TheoGoulart333/AI-Trading-Bot/actions/workflows/ci.yml/badge.svg)](https://github.com/TheoGoulart333/AI-Trading-Bot/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-Random_Forest-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
+[![CCXT](https://img.shields.io/badge/Market_Data-CCXT-2C3E50)](https://github.com/ccxt/ccxt)
+[![License](https://img.shields.io/badge/License-MIT-16A34A)](LICENSE)
+
+Um pipeline educacional que conecta dados OHLCV, indicadores técnicos, modelos
+temporais e backtesting com custos de execução e gestão de risco.
+
+[Visão geral](#visão-geral) · [Arquitetura](#arquitetura) · [Como executar](#como-executar) · [Validação](#validação) · [Interpretação](#interpretação-responsável)
 
 </div>
 
----
+> [!IMPORTANT]
+> Este repositório é um experimento de engenharia e pesquisa. Ele não executa
+> ordens reais, não constitui recomendação financeira e não garante retorno.
 
-## 🎯 Sobre o Projeto
+## Visão geral
 
-Este projeto implementa um **bot de análise de mercado baseado em IA** com pipeline completo:
-ingestão de dados → análise técnica → modelo preditivo → backtesting. O objetivo é demonstrar
-boas práticas de engenharia de software em um domínio complexo e real.
+O projeto investiga uma pergunta objetiva: **como estruturar e avaliar um
+baseline de classificação direcional sem confundir desempenho histórico com
+capacidade preditiva real?**
 
-> ⚠️ Este projeto é **exclusivamente educacional**. Não é um sistema de trading em produção,
-> não gerencia dinheiro real e não garante retornos financeiros de qualquer espécie.
+O fluxo implementado:
 
-### ✨ Destaques Técnicos
+1. coleta candles por meio da API unificada da CCXT;
+2. constrói indicadores e atributos sem usar informações futuras;
+3. separa treino e teste respeitando a ordem cronológica;
+4. estima a probabilidade de alta do próximo candle;
+5. converte previsões em operações simuladas;
+6. mede retorno, drawdown, taxa de acerto e profit factor;
+7. salva modelo e relatório para auditoria.
 
-- **Arquitetura modular** com Programação Orientada a Objetos e interfaces abstratas (Strategy Pattern)
-- **Pipeline de ML completo**: feature engineering, TimeSeriesSplit, validação cruzada temporal
-- **Dois modelos intercambiáveis**: Random Forest (baseline interpretável) e LSTM (deep learning sequencial)
-- **Motor de backtesting** com simulação realista de taxas, slippage, stop-loss e take-profit
-- **Métricas financeiras** profissionais: Sharpe Ratio, Maximum Drawdown, Profit Factor
-- **Cobertura de testes** com pytest e fixtures para dados sintéticos
-- **Código PEP8** com docstrings completas e logging estruturado
+O `RandomForestClassifier` funciona como baseline principal. Uma implementação
+LSTM opcional permite explorar sequências, mantendo o ajuste do scaler restrito
+ao conjunto de treino.
 
----
+## O que este projeto demonstra
 
-## 🏗 Arquitetura
+- **Engenharia de atributos temporal:** retornos, volume relativo, momentum,
+  tendência e volatilidade.
+- **Prevenção de look-ahead bias:** o último candle, cujo futuro é desconhecido,
+  não recebe artificialmente a classe de baixa.
+- **Alinhamento por timestamp:** candles, atributos, targets e previsões usam o
+  mesmo índice temporal durante o backtest.
+- **Validação cronológica:** split de treino/teste e `TimeSeriesSplit`, nunca
+  embaralhamento aleatório.
+- **Execução mais realista:** slippage adverso, taxa na entrada e na saída,
+  stop-loss, take-profit e encerramento por sinal contrário.
+- **Métricas sem falsa precisão:** o Sharpe é informado por operação e não é
+  anualizado quando a frequência efetiva da estratégia é desconhecida.
+- **Resiliência da coleta:** falhas transitórias de rede usam tentativas com
+  espera exponencial; erros da exchange falham imediatamente.
+- **Qualidade automatizada:** formatação, lint, testes e cobertura executados no
+  GitHub Actions.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        AI TRADING BOT PIPELINE                       │
-└─────────────────────────────────────────────────────────────────────┘
+## Arquitetura
 
-  ┌──────────────┐    ┌──────────────────┐    ┌──────────────────────┐
-  │  Exchange    │    │  Data Ingestion   │    │ Technical Analysis   │
-  │  (CCXT)      │───▶│  OHLCV Fetcher   │───▶│  RSI, MACD, BB,      │
-  │  Binance     │    │  Rate Limiting    │    │  EMA, SMA, ATR,      │
-  │  Kraken...   │    │  Error Handling   │    │  VWAP, Volume Ratio  │
-  └──────────────┘    └──────────────────┘    └──────────┬───────────┘
-                                                          │
-                       ┌──────────────────────────────────▼──────────┐
-                       │          Feature Engineering                  │
-                       │  Returns % | Volume Anomaly | Target Label   │
-                       └──────────────────────┬──────────────────────┘
-                                              │
-             ┌────────────────────────────────▼───────────────────────┐
-             │                    AI Model Layer                        │
-             │                                                          │
-             │  ┌─────────────────────┐   ┌──────────────────────┐    │
-             │  │   Random Forest     │   │        LSTM           │    │
-             │  │  (Baseline, Fast)   │   │  (Sequential, Deep)   │    │
-             │  │  Feature Importance │   │  Lookback Window: 60  │    │
-             │  └─────────────────────┘   └──────────────────────┘    │
-             │          TimeSeriesSplit — sem look-ahead bias           │
-             └────────────────────────────┬───────────────────────────┘
-                                          │
-             ┌────────────────────────────▼───────────────────────────┐
-             │                   Backtesting Engine                     │
-             │  Capital Mgmt | Stop-Loss | Take-Profit | Slippage      │
-             └────────────────────────────┬───────────────────────────┘
-                                          │
-             ┌────────────────────────────▼───────────────────────────┐
-             │                    Results & Reporting                   │
-             │   Sharpe Ratio | Max Drawdown | Win Rate | JSON + Logs  │
-             └────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    A[Exchange via CCXT] --> B[OHLCV normalizado]
+    B --> C[Indicadores técnicos]
+    C --> D[Engenharia de atributos]
+    D --> E{Modelo}
+    E -->|Baseline| F[Random Forest]
+    E -->|Opcional| G[LSTM]
+    F --> H[Probabilidade e sinal]
+    G --> H
+    H --> I[Backtester]
+    I --> J[Custos e risco]
+    J --> K[Relatório JSON]
 ```
 
-### Fluxo de Dados
+| Módulo | Responsabilidade |
+| --- | --- |
+| `src/data_ingestion.py` | Conexão CCXT, normalização OHLCV, rate limit e retries |
+| `src/technical_analysis.py` | SMA, EMA, RSI, MACD, Bollinger Bands, ATR e VWAP |
+| `src/ai_model.py` | Preparação temporal, Random Forest, LSTM e persistência |
+| `src/backtesting.py` | Simulação de posições, custos, risco e métricas |
+| `main.py` | Orquestração do pipeline e interface de linha de comando |
+| `tests/` | Testes unitários de indicadores, modelos, coleta e backtest |
 
-1. **DataIngestion** conecta à exchange via CCXT e busca N candles OHLCV com rate limiting automático
-2. **TechnicalAnalysis** enriquece o DataFrame com 15+ indicadores usando Pandas (sem dependência de TA-Lib)
-3. **Feature Engineering** gera retornos percentuais, anomalias de volume e o target label binário
-4. **AI Model** treina com `TimeSeriesSplit` para respeitar a ordem temporal e evitar data leakage
-5. **Backtester** simula operações no conjunto de teste com custos realistas e gestão de risco
-6. **Reporting** salva métricas em JSON e logs estruturados para auditoria
+## Como executar
 
----
+### 1. Preparar o ambiente
 
-## 📁 Estrutura de Pastas
-
+```bash
+git clone https://github.com/TheoGoulart333/AI-Trading-Bot.git
+cd AI-Trading-Bot
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
-ai_trading_bot/
-│
+
+No Windows, ative o ambiente com `.venv\Scripts\activate`.
+
+### 2. Rodar sem API externa
+
+```bash
+python main.py --dry-run --limit 500
+```
+
+Esse modo cria uma série sintética reproduzível e valida todas as etapas sem
+depender de uma exchange.
+
+### 3. Usar dados públicos de mercado
+
+```bash
+python main.py --symbol BTC/USDT --timeframe 1h --limit 1000
+```
+
+Os dados são usados somente para pesquisa e backtesting. O projeto não envia
+ordens nem solicita chaves privadas.
+
+### 4. Experimentar a LSTM
+
+```bash
+python -m pip install -r requirements-lstm.txt
+python main.py --model lstm --dry-run --limit 2000
+```
+
+## Parâmetros
+
+| Opção | Padrão | Descrição |
+| --- | --- | --- |
+| `--symbol` | `BTC/USDT` | Mercado analisado |
+| `--timeframe` | `1h` | Intervalo dos candles |
+| `--limit` | `500` | Quantidade de candles solicitada |
+| `--model` | `random_forest` | `random_forest` ou `lstm` |
+| `--dry-run` | desativado | Usa dados sintéticos reproduzíveis |
+| `--output` | `results` | Diretório de artefatos |
+| `--log-level` | `INFO` | Nível de detalhamento do log |
+
+## Validação
+
+Instale as dependências de desenvolvimento e rode a mesma verificação usada no
+CI:
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m black --check main.py src tests
+python -m ruff check main.py src tests
+python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=75
+```
+
+A suíte verifica, entre outros comportamentos:
+
+- invariantes matemáticos dos indicadores;
+- exclusão do target sem futuro conhecido;
+- preservação dos timestamps das amostras;
+- treino, inferência e restauração do Random Forest;
+- sequências da LSTM sem ajuste antecipado do scaler;
+- confiança correta para sinais de alta e de baixa;
+- taxas de ida e volta e encerramento por sinal;
+- stop-loss e validação das entradas do backtest;
+- repetição apenas para falhas recuperáveis de rede.
+
+## Interpretação responsável
+
+O modo `--dry-run` é um teste de integração, não um benchmark financeiro. Uma
+acurácia baixa ou um retorno negativo em dados sintéticos é um resultado válido:
+ele mostra que o pipeline não foi construído para fabricar uma narrativa de
+lucro.
+
+Antes de qualquer estudo mais sério, seria necessário acrescentar:
+
+- walk-forward validation com múltiplas janelas;
+- comparação contra buy-and-hold e classificadores ingênuos;
+- calibração de probabilidades e análise de estabilidade;
+- custos específicos de mercado, liquidez e latência;
+- prevenção de survivorship bias e seleção retrospectiva;
+- testes fora da amostra em diferentes regimes de mercado.
+
+## Estrutura
+
+```text
+AI-Trading-Bot/
+├── .github/workflows/ci.yml
 ├── src/
-│   ├── __init__.py
-│   ├── data_ingestion.py      # Módulo de coleta de dados via CCXT
-│   ├── technical_analysis.py  # Cálculo de indicadores técnicos
-│   ├── ai_model.py            # Random Forest + LSTM (BaseModel interface)
-│   └── backtesting.py         # Simulador de estratégias
-│
+│   ├── ai_model.py
+│   ├── backtesting.py
+│   ├── data_ingestion.py
+│   └── technical_analysis.py
 ├── tests/
-│   ├── __init__.py
-│   └── test_technical_analysis.py  # Testes unitários (pytest)
-│
-├── results/                   # JSONs de resultados (gerado automaticamente)
-├── logs/                      # Arquivos de log (gerado automaticamente)
-│
-├── main.py                    # Orquestrador do pipeline (CLI)
+│   ├── conftest.py
+│   ├── test_ai_model.py
+│   ├── test_backtesting.py
+│   ├── test_data_ingestion.py
+│   └── test_technical_analysis.py
+├── main.py
+├── pyproject.toml
 ├── requirements.txt
-└── README.md
+├── requirements-dev.txt
+└── requirements-lstm.txt
 ```
 
----
+## Próximos experimentos
 
-## 🚀 Instalação
+- adicionar baselines determinísticos para comparação;
+- implementar walk-forward validation;
+- produzir curva de patrimônio e relatório HTML;
+- testar calibração e seleção de limiar por janela de validação;
+- tornar configurações da estratégia externas e versionáveis.
 
-### Pré-requisitos
+## Licença
 
-- Python 3.11+
-- pip
-
-### Passo a Passo
-
-```bash
-# 1. Clone o repositório
-git clone https://github.com/seu-usuario/ai-trading-bot.git
-cd ai-trading-bot
-
-# 2. Crie e ative um ambiente virtual
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# ou: venv\Scripts\activate  # Windows
-
-# 3. Instale as dependências
-pip install -r requirements.txt
-
-# 4. (Opcional) Para usar o modelo LSTM
-pip install tensorflow
-```
-
----
-
-## 💻 Uso
-
-### Modo Dry-Run (recomendado para testes — sem API)
-
-```bash
-python main.py --dry-run
-```
-
-### Com dados reais (Binance, sem autenticação para dados públicos)
-
-```bash
-# BTC/USDT, timeframe de 1 hora, 500 candles
-python main.py --symbol BTC/USDT --timeframe 1h --limit 500
-
-# ETH/USDT, timeframe de 4 horas
-python main.py --symbol ETH/USDT --timeframe 4h --limit 1000
-
-# Com modelo LSTM (requer TensorFlow instalado)
-python main.py --model lstm --limit 2000 --dry-run
-```
-
-### Executar Testes
-
-```bash
-pytest tests/ -v --cov=src --cov-report=term-missing
-```
-
-### Argumentos da CLI
-
-| Argumento    | Padrão         | Descrição                                |
-|:-------------|:---------------|:-----------------------------------------|
-| `--symbol`   | `BTC/USDT`     | Par de trading da exchange               |
-| `--timeframe`| `1h`           | Intervalo dos candles                    |
-| `--limit`    | `500`          | Número de candles históricos             |
-| `--model`    | `random_forest`| Modelo de IA: `random_forest` ou `lstm` |
-| `--dry-run`  | `False`        | Usa dados sintéticos (sem API)           |
-| `--log-level`| `INFO`         | Nível de verbosidade dos logs            |
-| `--output`   | `results/`     | Diretório para salvar resultados         |
-
----
-
-## 📦 Módulos
-
-### `src/data_ingestion.py` — DataIngestion
-Conecta a 100+ exchanges via CCXT. Features:
-- Busca candles OHLCV com retry automático
-- Rate limiting integrado (`enableRateLimit=True`)
-- Suporte a modo sandbox para testes seguros
-- Busca multi-símbolo com tratamento de falhas parciais
-
-### `src/technical_analysis.py` — TechnicalAnalysis
-Calcula indicadores diretamente com Pandas/NumPy (zero dependência de TA-Lib):
-- **Médias**: SMA (20/50/200), EMA (9/21)
-- **Momentum**: RSI (14), MACD (12/26/9)
-- **Volatilidade**: Bollinger Bands, ATR
-- **Volume**: VWAP, Volume Ratio
-- API fluente com method chaining: `ta.add_sma().add_rsi().add_macd()`
-
-### `src/ai_model.py` — RandomForestModel / LSTMModel
-Interface `BaseModel` abstrata (Strategy Pattern) com duas implementações:
-
-| Aspecto | Random Forest | LSTM |
-|:--------|:--------------|:-----|
-| Dados mínimos | ~300 candles | ~2000 candles |
-| Velocidade de treino | Segundos | Minutos |
-| Interpretabilidade | ✅ Feature Importance | ❌ Caixa preta |
-| Captura temporal | Limitada | Excelente |
-| Recomendado para | Início e baseline | Experimentos avançados |
-
-### `src/backtesting.py` — Backtester
-Simula operações históricas com:
-- Gestão de capital por percentual (`position_size_pct`)
-- Custos reais: taxa Binance (0.1%) + slippage (0.05%)
-- Stop-loss e take-profit por candle
-- Filtro de confiança mínima do modelo (`min_confidence`)
-- Métricas: Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor
-
----
-
-## 🧪 Decisões de Design e Conceitos Importantes
-
-### Por que TimeSeriesSplit e não train_test_split aleatório?
-
-Em séries temporais, usar split aleatório causa **data leakage** (vazamento de dados): o modelo
-"vê" o futuro durante o treino, inflando artificialmente as métricas. O `TimeSeriesSplit` garante
-que o modelo seja sempre treinado com dados do passado e avaliado com dados do futuro.
-
-### Por que Random Forest como baseline?
-
-Random Forest é resistente a overfitting, treina rapidamente e fornece **feature importance** —
-essencial para entender quais indicadores técnicos realmente contribuem para as previsões.
-É o ponto de partida ideal antes de escalar para modelos mais complexos.
-
-### Por que simular slippage no backtesting?
-
-Slippage é a diferença entre o preço esperado e o preço executado, comum em mercados com pouca
-liquidez. Ignorá-lo produz backtests irrealisticamente otimistas (overfitting de estratégia).
-
----
-
-## ⚠️ Disclaimer
-
-> **Este projeto é estritamente educacional e de portfólio.**
->
-> - Não constitui aconselhamento financeiro, de investimento ou recomendação de qualquer tipo.
-> - Resultados de backtesting **não garantem** performance futura.
-> - Trading de criptomoedas e outros ativos envolve **risco substancial de perda**.
-> - Os autores não se responsabilizam por qualquer perda financeira decorrente do uso deste código.
-> - Consulte um profissional financeiro certificado antes de tomar decisões de investimento.
->
-> **Nunca use dinheiro que você não pode se dar ao luxo de perder.**
-
----
-
-## 📄 Licença
-
-Distribuído sob a licença MIT. Veja `LICENSE` para mais informações.
+Distribuído sob a licença [MIT](LICENSE).
 
 ---
 
 <div align="center">
 
-Feito com 🧠 e ☕ — Para aprender, questionar e evoluir.
+Construído por [Theo Goulart](https://github.com/TheoGoulart333) como estudo de
+IA aplicada, engenharia de software e avaliação responsável de modelos.
 
 </div>
