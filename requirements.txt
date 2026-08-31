@@ -12,4 +12,4 @@ scikit-learn>=1.4.0
 joblib>=1.3.0
 
 # --- Exchange Connectivity ---
-ccxt>=4.2.0
+ccxt>=4.5.76
