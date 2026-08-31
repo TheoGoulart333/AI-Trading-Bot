@@ -425,9 +425,7 @@ class Backtester:
         logger.info("=" * 60)
         logger.info(f"  Retorno Total   : {c['total_return_pct']:+.2f}%")
         logger.info(f"  Buy & Hold      : {b['total_return_pct']:+.2f}%")
-        logger.info(
-            f"  Retorno Excedente: {b['strategy_excess_return_pct']:+.2f}%"
-        )
+        logger.info(f"  Retorno Excedente: {b['strategy_excess_return_pct']:+.2f}%")
         logger.info(f"  Capital Final   : ${c['final']:>10,.2f}")
         logger.info(f"  P&L Total       : ${c['total_pnl']:>+10,.2f}")
         logger.info("-" * 60)
