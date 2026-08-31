@@ -1,0 +1,49 @@
+name: Feature proposal
+description: Propose a measurable improvement to the project
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Problem and motivation
+      description: Explain the concrete problem this feature would solve.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Include expected inputs, outputs, and behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] Behavior is covered by tests
+        - [ ] Financial assumptions are documented
+        - [ ] Existing dry-run flow remains functional
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Data ingestion
+        - Feature engineering
+        - Machine learning
+        - Backtesting and risk
+        - Developer experience
+        - Documentation
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to work on this proposal.
+
