@@ -347,6 +347,10 @@ class Backtester:
         total_pnl = trades_df["pnl"].sum()
         final_capital = self.config.initial_capital + total_pnl
         total_return = (final_capital / self.config.initial_capital - 1) * 100
+        benchmark_return = (
+            float(df["close"].iloc[-1]) / float(df["close"].iloc[0]) - 1
+        ) * 100
+        excess_return = total_return - benchmark_return
 
         # Sharpe não anualizado sobre os retornos por operação. Sem conhecer a
         # frequência efetiva da estratégia, anualizar produziria falsa precisão.
@@ -375,6 +379,11 @@ class Backtester:
                 "final": round(final_capital, 2),
                 "total_pnl": round(total_pnl, 2),
                 "total_return_pct": round(total_return, 2),
+            },
+            "benchmark": {
+                "name": "buy_and_hold",
+                "total_return_pct": round(benchmark_return, 2),
+                "strategy_excess_return_pct": round(excess_return, 2),
             },
             "trades": {
                 "total": total_trades,
@@ -407,6 +416,7 @@ class Backtester:
     def _print_report(self, metrics: dict) -> None:
         """Imprime relatório formatado no terminal."""
         c = metrics["capital"]
+        b = metrics["benchmark"]
         t = metrics["trades"]
         r = metrics["risk"]
 
@@ -414,6 +424,8 @@ class Backtester:
         logger.info("📊 RELATÓRIO DE BACKTESTING")
         logger.info("=" * 60)
         logger.info(f"  Retorno Total   : {c['total_return_pct']:+.2f}%")
+        logger.info(f"  Buy & Hold      : {b['total_return_pct']:+.2f}%")
+        logger.info(f"  Retorno Excedente: {b['strategy_excess_return_pct']:+.2f}%")
         logger.info(f"  Capital Final   : ${c['final']:>10,.2f}")
         logger.info(f"  P&L Total       : ${c['total_pnl']:>+10,.2f}")
         logger.info("-" * 60)
