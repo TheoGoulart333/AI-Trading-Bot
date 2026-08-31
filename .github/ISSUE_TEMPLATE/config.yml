@@ -1,0 +1,6 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/TheoGoulart333/AI-Trading-Bot/security/advisories/new
+    about: Report sensitive vulnerabilities privately
+
