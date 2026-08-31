@@ -5,7 +5,7 @@
 
 # --- Core Data & Analysis ---
 pandas>=2.1.0
-numpy>=1.26.0
+numpy>=2.5.2
 
 # --- Machine Learning ---
 scikit-learn>=1.4.0
